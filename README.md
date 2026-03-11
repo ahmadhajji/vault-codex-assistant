@@ -31,7 +31,7 @@ This plugin is intentionally desktop-only and local-first. It does not use a loc
 2. Create this folder in your vault:
 
 ```text
-.obsidian/plugins/chatgpt-sidebar-for-obsidian/
+.obsidian/plugins/chatgpt-sidebar/
 ```
 
 3. Copy those release files into that folder.
@@ -51,7 +51,7 @@ Then copy:
 - `manifest.json`
 - `styles.css`
 
-into `.obsidian/plugins/chatgpt-sidebar-for-obsidian/` in a test vault.
+into `.obsidian/plugins/chatgpt-sidebar/` in a test vault.
 
 ## Usage
 

@@ -1,10 +1,10 @@
 {
-	"id": "chatgpt-sidebar-for-obsidian",
+	"id": "chatgpt-sidebar",
 	"name": "ChatGPT Sidebar for Obsidian",
 	"minAppVersion": "1.10.0",
 	"description": "ChatGPT-style vault sidebar assistant for Obsidian with AGENTS.md-aware chat.",
 	"author": "Ahmad Hajji",
 	"authorUrl": "https://github.com/ahmadhajji",
 	"isDesktopOnly": true,
-	"version": "1.0.0"
+	"version": "1.0.1"
 }

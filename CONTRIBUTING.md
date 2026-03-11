@@ -20,7 +20,7 @@ npm test
 For iterative work, build the plugin and copy `main.js`, `manifest.json`, and `styles.css` into a test vault at:
 
 ```text
-.obsidian/plugins/chatgpt-sidebar-for-obsidian/
+.obsidian/plugins/chatgpt-sidebar/
 ```
 
 ## Pull request guidelines
@@ -35,7 +35,7 @@ For iterative work, build the plugin and copy `main.js`, `manifest.json`, and `s
 
 - `manifest.json`, `package.json`, and `versions.json` must stay in sync for releases.
 - GitHub releases should attach `main.js`, `manifest.json`, and `styles.css`.
-- Community Plugins submission metadata must continue to match the plugin id `chatgpt-sidebar-for-obsidian`.
+- Community Plugins submission metadata must continue to match the plugin id `chatgpt-sidebar`.
 
 ## Code of conduct
 
