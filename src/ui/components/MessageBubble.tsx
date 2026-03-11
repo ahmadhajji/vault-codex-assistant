@@ -5,6 +5,7 @@ import type { Message, ToolCall } from "src/types";
 import { AVAILABLE_MODELS } from "src/types";
 import { HTMLPreviewModal, extractHtmlFromCodeBlock } from "./HTMLPreviewModal";
 import { McpAppRenderer } from "./McpAppRenderer";
+import { splitAssistantLeadIn, normalizeThinkingSections } from "./messageSegmentation";
 import { t } from "src/i18n";
 import { formatError } from "src/utils/error";
 
@@ -30,6 +31,12 @@ export default function MessageBubble({
   const [expandedMcpApps, setExpandedMcpApps] = useState<Set<number>>(new Set());
   const contentRef = useRef<HTMLDivElement>(null);
   const componentRef = useRef<Component | null>(null);
+
+  const { leadIn, finalContent } = !isUser
+    ? splitAssistantLeadIn(message.content)
+    : { leadIn: [], finalContent: message.content };
+  const displayThinking = !isUser ? normalizeThinkingSections(message.thinking, leadIn) : [];
+  const hasRenderableFinalAnswer = !isUser && finalContent.trim().length > 0;
 
   // Toggle MCP App expansion
   const toggleMcpAppExpand = useCallback((index: number) => {
@@ -61,7 +68,7 @@ export default function MessageBubble({
     // Render markdown
     void MarkdownRenderer.render(
       app,
-      message.content,
+      finalContent,
       contentRef.current,
       "/",
       componentRef.current
@@ -98,7 +105,7 @@ export default function MessageBubble({
         componentRef.current = null;
       }
     };
-  }, [message.content, app]);
+  }, [finalContent, app]);
 
   // Get model display name
   const getModelDisplayName = () => {
@@ -476,24 +483,38 @@ export default function MessageBubble({
       )}
 
       {/* Thinking content (collapsible) */}
-      {message.thinking && (
+      {displayThinking.length > 0 && (
         <details className="gemini-helper-thinking">
           <summary className="gemini-helper-thinking-summary">
             💭 {t("message.thinking")}
           </summary>
           <div className="gemini-helper-thinking-content">
-            {message.thinking}
+            {displayThinking.map((section, index) => (
+              <div key={index} className="gemini-helper-thinking-step">
+                {section}
+              </div>
+            ))}
           </div>
         </details>
       )}
 
-      {!isUser && message.content && (
-        <div className="gemini-helper-final-answer-label">
-          {isStreaming ? "Working answer" : "Final answer"}
+      {!isUser && hasRenderableFinalAnswer ? (
+        <div className="gemini-helper-final-answer">
+          <div className="gemini-helper-final-answer-label">
+            {isStreaming ? "Working answer" : "Final answer"}
+          </div>
+          <div className="gemini-helper-message-content" ref={contentRef} />
         </div>
+      ) : !isUser && isStreaming ? (
+        <div className="gemini-helper-final-answer gemini-helper-final-answer-pending">
+          <div className="gemini-helper-final-answer-label">Working answer</div>
+          <div className="gemini-helper-final-answer-placeholder">
+            Waiting for a concrete result from Codex...
+          </div>
+        </div>
+      ) : (
+        <div className="gemini-helper-message-content" ref={contentRef} />
       )}
-
-      <div className="gemini-helper-message-content" ref={contentRef} />
 
       {/* Usage info (tokens, cost, response time) */}
       {!isUser && !isStreaming && (message.usage || message.elapsedMs) && (

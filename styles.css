@@ -532,12 +532,24 @@ body.gemini-helper-hide-workspace-folder .nav-folder:has(> [data-path="GeminiHel
 }
 
 .gemini-helper-final-answer-label {
-  margin: 8px 0 6px;
+  margin: 0 0 10px;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text-faint);
+}
+
+.gemini-helper-final-answer {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--text-faint);
+}
+
+.gemini-helper-final-answer-placeholder {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-style: italic;
 }
 
 /* Tool Calls */
@@ -882,16 +894,23 @@ body.gemini-helper-hide-workspace-folder .nav-folder:has(> [data-path="GeminiHel
   padding-top: 0;
   font-size: 12px;
   color: var(--text-muted);
-  white-space: pre-wrap;
+  white-space: normal;
   word-break: break-word;
   max-height: 300px;
   overflow-y: auto;
+  line-height: 1.6;
 }
 
 .gemini-helper-thinking-content ul,
 .gemini-helper-thinking-content ol,
 .gemini-helper-thinking-content p {
   margin: 0;
+}
+
+.gemini-helper-thinking-step + .gemini-helper-thinking-step {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--background-modifier-border-hover);
 }
 
 /* Tools Used Indicator */

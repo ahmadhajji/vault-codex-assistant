@@ -1169,6 +1169,7 @@ const Chat = forwardRef<ChatRef, ChatProps>(({ plugin }, ref) => {
 			systemPrompt += `\n\nUse vault-relative paths when discussing files and notes. Preserve vault conventions, wiki links, and frontmatter when practical.`;
 			systemPrompt += `\n\nAll edits, note creation, renames, moves, and AGENTS.md changes must be proposed carefully. Never claim a change was applied unless the user explicitly approved it in Obsidian.`;
 			systemPrompt += `\n\nYou are running in ${cliName} mode. Prefer analyzing existing notes, suggesting exact edits, and following durable project instructions.`;
+			systemPrompt += `\n\nKeep internal process narration out of the final answer. Do not start the final answer with lines like "I'm checking", "Now I'm searching", or other progress updates. Put progress into reasoning/tool use, and make the final answer start directly with the result, summary, or requested output.`;
 
 			if (plugin.settings.systemPrompt) {
 				systemPrompt += `\n\nAdditional instructions: ${plugin.settings.systemPrompt}`;
