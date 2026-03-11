@@ -1,8 +1,8 @@
 {
-	"id": "vault-codex-assistant",
-	"name": "Vault Codex Assistant",
+	"id": "chatgpt-sidebar-for-obsidian",
+	"name": "ChatGPT Sidebar for Obsidian",
 	"minAppVersion": "1.10.0",
-	"description": "Vault-scoped Codex assistant for Obsidian with AGENTS.md-aware chat.",
+	"description": "ChatGPT-style vault sidebar assistant for Obsidian with AGENTS.md-aware chat.",
 	"author": "Ahmad Hajji",
 	"authorUrl": "https://github.com/ahmadhajji",
 	"isDesktopOnly": true,

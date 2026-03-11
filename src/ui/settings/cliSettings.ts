@@ -14,7 +14,7 @@ export function displayCliSettings(containerEl: HTMLElement, ctx: SettingsContex
   new Setting(containerEl).setName("Codex CLI").setHeading();
 
   const introEl = containerEl.createDiv({ cls: "setting-item-description gemini-helper-cli-intro" });
-  introEl.textContent = "Vault Codex Assistant runs on Codex CLI only. Verify the CLI here and set an explicit path if Obsidian cannot locate it.";
+  introEl.textContent = "ChatGPT Sidebar for Obsidian runs on Codex CLI only. Verify the CLI here and set an explicit path if Obsidian cannot locate it.";
 
   createCliVerifyRow(containerEl, {
     name: "Codex CLI",

@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for contributing to Vault Codex Assistant.
+Thanks for contributing to ChatGPT Sidebar for Obsidian.
 
 ## Before you start
 
@@ -20,7 +20,7 @@ npm test
 For iterative work, build the plugin and copy `main.js`, `manifest.json`, and `styles.css` into a test vault at:
 
 ```text
-.obsidian/plugins/vault-codex-assistant/
+.obsidian/plugins/chatgpt-sidebar-for-obsidian/
 ```
 
 ## Pull request guidelines
@@ -35,7 +35,7 @@ For iterative work, build the plugin and copy `main.js`, `manifest.json`, and `s
 
 - `manifest.json`, `package.json`, and `versions.json` must stay in sync for releases.
 - GitHub releases should attach `main.js`, `manifest.json`, and `styles.css`.
-- Community Plugins submission metadata must continue to match the plugin id `vault-codex-assistant`.
+- Community Plugins submission metadata must continue to match the plugin id `chatgpt-sidebar-for-obsidian`.
 
 ## Code of conduct
 

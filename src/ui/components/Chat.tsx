@@ -2444,7 +2444,7 @@ The active Obsidian vault is your only workspace boundary. Use vault-relative pa
 				<div className="gemini-helper-config-required">
 					<div className="gemini-helper-config-message">
 						<h4>Codex CLI setup required</h4>
-						<p>Vault Codex Assistant runs through the local Codex CLI. Verify the Codex path in plugin settings before starting a chat.</p>
+						<p>ChatGPT Sidebar for Obsidian runs through the local Codex CLI. Verify the Codex path in plugin settings before starting a chat.</p>
 						<ul>
 							<li><strong>Codex CLI</strong> - Install `codex`, then verify it from the plugin settings tab.</li>
 						</ul>

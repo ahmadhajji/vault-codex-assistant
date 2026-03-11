@@ -11,7 +11,7 @@ We kept:
 - edit confirmation and diff/history primitives
 
 We intentionally changed:
-- plugin identity to `vault-codex-assistant`
+- plugin identity to `chatgpt-sidebar-for-obsidian`
 - backend posture to Codex CLI only
 - runtime architecture to in-plugin CLI execution, not a localhost bridge
 - durable instruction source to vault-root `AGENTS.md`

@@ -1,6 +1,6 @@
-# Vault Codex Assistant
+# ChatGPT Sidebar for Obsidian
 
-Vault Codex Assistant is an Obsidian desktop plugin that brings a Codex-style assistant into the vault sidebar. It is local-first, scoped to the currently open vault, and designed around Codex CLI rather than a hosted multi-provider setup.
+ChatGPT Sidebar for Obsidian is an Obsidian desktop plugin that brings a ChatGPT-style assistant into the vault sidebar. It is local-first, scoped to the currently open vault, and designed around Codex CLI rather than a hosted multi-provider setup.
 
 This project is derived from [`takeshy/obsidian-gemini-helper`](https://github.com/takeshy/obsidian-gemini-helper), with the product surface intentionally narrowed and reworked for a Codex-first Obsidian workflow.
 
@@ -31,12 +31,12 @@ This plugin is intentionally desktop-only and local-first. It does not use a loc
 2. Create this folder in your vault:
 
 ```text
-.obsidian/plugins/vault-codex-assistant/
+.obsidian/plugins/chatgpt-sidebar-for-obsidian/
 ```
 
 3. Copy those release files into that folder.
 4. In Obsidian, open `Settings -> Community plugins`.
-5. Reload plugins and enable `Vault Codex Assistant`.
+5. Reload plugins and enable `ChatGPT Sidebar for Obsidian`.
 
 ### Local development install
 
@@ -51,11 +51,11 @@ Then copy:
 - `manifest.json`
 - `styles.css`
 
-into `.obsidian/plugins/vault-codex-assistant/` in a test vault.
+into `.obsidian/plugins/chatgpt-sidebar-for-obsidian/` in a test vault.
 
 ## Usage
 
-1. Open the Vault Codex sidebar from the command palette or ribbon.
+1. Open the ChatGPT sidebar from the command palette or ribbon.
 2. Confirm the plugin can find your `codex` executable in settings.
 3. Optionally add an `AGENTS.md` file to the vault root for durable vault instructions.
 4. Start chatting about the current vault.

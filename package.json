@@ -1,7 +1,7 @@
 {
-  "name": "vault-codex-assistant",
+  "name": "chatgpt-sidebar-for-obsidian",
   "version": "1.0.0",
-  "description": "Vault-scoped Codex assistant for Obsidian with AGENTS.md-aware chat.",
+  "description": "ChatGPT-style vault sidebar assistant for Obsidian with AGENTS.md-aware chat.",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
@@ -23,12 +23,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ahmadhajji/vault-codex-assistant.git"
+    "url": "git+https://github.com/ahmadhajji/chatgpt-sidebar-for-obsidian.git"
   },
   "bugs": {
-    "url": "https://github.com/ahmadhajji/vault-codex-assistant/issues"
+    "url": "https://github.com/ahmadhajji/chatgpt-sidebar-for-obsidian/issues"
   },
-  "homepage": "https://github.com/ahmadhajji/vault-codex-assistant#readme",
+  "homepage": "https://github.com/ahmadhajji/chatgpt-sidebar-for-obsidian#readme",
   "devDependencies": {
     "@codemirror/state": "6.5.0",
     "@codemirror/view": "6.38.6",
