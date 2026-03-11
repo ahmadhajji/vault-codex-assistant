@@ -108,6 +108,48 @@ body.gemini-helper-hide-workspace-folder .nav-folder:has(> [data-path="GeminiHel
   font-weight: 600;
 }
 
+.gemini-helper-codex-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: color-mix(in srgb, var(--background-secondary) 65%, transparent);
+}
+
+.gemini-helper-codex-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 4px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 999px;
+  background: var(--background-primary);
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.gemini-helper-codex-pill-button {
+  cursor: pointer;
+}
+
+.gemini-helper-codex-pill-button:hover:not(:disabled) {
+  color: var(--text-normal);
+  border-color: var(--interactive-accent);
+}
+
+.gemini-helper-codex-pill-button.is-active {
+  color: var(--text-normal);
+  border-color: var(--interactive-accent);
+  background: color-mix(in srgb, var(--interactive-accent) 14%, var(--background-primary));
+}
+
+.gemini-helper-codex-pill-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .gemini-helper-clear-btn {
   font-size: 12px;
   padding: 4px 8px;
@@ -489,6 +531,15 @@ body.gemini-helper-hide-workspace-folder .nav-folder:has(> [data-path="GeminiHel
   margin-bottom: 0;
 }
 
+.gemini-helper-final-answer-label {
+  margin: 8px 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
 /* Tool Calls */
 .gemini-helper-tool-calls {
   margin-top: 8px;
@@ -835,6 +886,12 @@ body.gemini-helper-hide-workspace-folder .nav-folder:has(> [data-path="GeminiHel
   word-break: break-word;
   max-height: 300px;
   overflow-y: auto;
+}
+
+.gemini-helper-thinking-content ul,
+.gemini-helper-thinking-content ol,
+.gemini-helper-thinking-content p {
+  margin: 0;
 }
 
 /* Tools Used Indicator */

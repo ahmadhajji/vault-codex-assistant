@@ -455,8 +455,14 @@ export interface CliProviderInterface {
     systemPrompt: string,
     workingDirectory: string,
     signal?: AbortSignal,
-    sessionId?: string  // Optional session ID for resumption
+    sessionId?: string,  // Optional session ID for resumption
+    options?: CliStreamOptions
   ): AsyncGenerator<StreamChunk>;
+}
+
+export interface CliStreamOptions {
+  model?: string;
+  fastMode?: boolean;
 }
 
 /**
@@ -543,7 +549,8 @@ abstract class BaseCliProvider implements CliProviderInterface {
     systemPrompt: string,
     workingDirectory: string,
     signal?: AbortSignal,
-    sessionId?: string
+    sessionId?: string,
+    options?: CliStreamOptions
   ): AsyncGenerator<StreamChunk>;
 }
 
@@ -566,7 +573,8 @@ export class GeminiCliProvider extends BaseCliProvider {
     systemPrompt: string,
     workingDirectory: string,
     signal?: AbortSignal,
-    _sessionId?: string  // Unused - Gemini CLI doesn't support session resumption
+    _sessionId?: string,  // Unused - Gemini CLI doesn't support session resumption
+    _options?: CliStreamOptions
   ): AsyncGenerator<StreamChunk> {
     // Dynamically import child_process (not available on mobile)
     const { spawn } = getChildProcess();
@@ -648,7 +656,8 @@ export class ClaudeCliProvider extends BaseCliProvider {
     systemPrompt: string,
     workingDirectory: string,
     signal?: AbortSignal,
-    sessionId?: string  // When provided, resume this session instead of passing full history
+    sessionId?: string,  // When provided, resume this session instead of passing full history
+    _options?: CliStreamOptions
   ): AsyncGenerator<StreamChunk> {
     // Dynamically import child_process (not available on mobile)
     const { spawn } = getChildProcess();
@@ -808,7 +817,8 @@ export class CodexCliProvider extends BaseCliProvider {
     systemPrompt: string,
     workingDirectory: string,
     signal?: AbortSignal,
-    sessionId?: string  // When provided, resume this session
+    sessionId?: string,  // When provided, resume this session
+    options?: CliStreamOptions
   ): AsyncGenerator<StreamChunk> {
     // Dynamically import child_process (not available on mobile)
     const { spawn } = getChildProcess();
@@ -822,12 +832,32 @@ export class CodexCliProvider extends BaseCliProvider {
       const lastMessage = messages[messages.length - 1];
       const prompt = lastMessage?.role === "user" ? lastMessage.content : "";
 
-      cliArgs = ["exec", "--json", "--skip-git-repo-check", "resume", sessionId, prompt];
+      cliArgs = [
+        "exec",
+        "--json",
+        "--skip-git-repo-check",
+        "--sandbox",
+        "workspace-write",
+      ];
+      if (options?.model) {
+        cliArgs.push("--model", options.model);
+      }
+      cliArgs.push("resume", sessionId, prompt);
     } else {
       // First message - send full history with system prompt
       const prompt = formatHistoryAsPrompt(messages, systemPrompt);
 
-      cliArgs = ["exec", "--json", "--skip-git-repo-check", prompt];
+      cliArgs = [
+        "exec",
+        "--json",
+        "--skip-git-repo-check",
+        "--sandbox",
+        "workspace-write",
+      ];
+      if (options?.model) {
+        cliArgs.push("--model", options.model);
+      }
+      cliArgs.push(prompt);
     }
 
     const { command, args } = resolveCodexCommand(cliArgs);
@@ -856,7 +886,7 @@ export class CodexCliProvider extends BaseCliProvider {
     if (proc.stdout) {
       proc.stdout.setEncoding("utf8");
       let buffer = "";
-      const state = { sessionIdEmitted: false };
+      const state = { sessionIdEmitted: false, turnStarted: false };
 
       for await (const chunk of proc.stdout) {
         buffer += chunk;
@@ -877,6 +907,31 @@ export class CodexCliProvider extends BaseCliProvider {
       }
     }
 
+    // Wait for process completion so exit failures are surfaced instead of silently ending the stream.
+    await new Promise<void>((resolve, reject) => {
+      proc.on("close", (code: number | null) => {
+        if (code === 0 || code === null) {
+          resolve();
+        } else {
+          reject(new Error(`Codex CLI exited with code ${code}`));
+        }
+      });
+      proc.on("error", reject);
+    });
+
+    // Surface stderr when present, especially for auth/setup failures.
+    if (proc.stderr) {
+      let stderr = "";
+      proc.stderr.setEncoding("utf8");
+      for await (const chunk of proc.stderr) {
+        stderr += chunk;
+      }
+      if (stderr.trim()) {
+        yield { type: "error", error: stderr.trim() };
+        return;
+      }
+    }
+
     yield { type: "done" };
   }
 
@@ -885,7 +940,7 @@ export class CodexCliProvider extends BaseCliProvider {
    */
   private *processJsonLine(
     line: string,
-    state: { sessionIdEmitted: boolean }
+    state: { sessionIdEmitted: boolean; turnStarted: boolean }
   ): Generator<StreamChunk> {
     try {
       const parsed = JSON.parse(line) as Record<string, unknown>;
@@ -896,13 +951,37 @@ export class CodexCliProvider extends BaseCliProvider {
           yield { type: "session_id", sessionId: parsed.thread_id };
           state.sessionIdEmitted = true;
         }
+        yield { type: "thinking", content: "Started Codex session" };
+      } else if (parsed.type === "turn.started") {
+        state.turnStarted = true;
+        yield { type: "thinking", content: "Analyzing vault context" };
       }
       // Handle Codex CLI JSON format
       else if (parsed.type === "item.completed") {
         const item = parsed.item as Record<string, unknown> | undefined;
-        if (item && item.type === "agent_message" && typeof item.text === "string") {
+        if (item && item.type === "reasoning" && typeof item.text === "string") {
+          yield { type: "thinking", content: item.text };
+        } else if (item && item.type === "agent_message" && typeof item.text === "string") {
+          yield { type: "thinking", content: "Drafting final answer" };
           yield { type: "text", content: item.text };
         }
+      } else if (parsed.type === "turn.completed") {
+        const usage = parsed.usage as Record<string, unknown> | undefined;
+        const inputTokens = typeof usage?.input_tokens === "number" ? usage.input_tokens : undefined;
+        const cachedInputTokens = typeof usage?.cached_input_tokens === "number" ? usage.cached_input_tokens : undefined;
+        const outputTokens = typeof usage?.output_tokens === "number" ? usage.output_tokens : undefined;
+        const totalInputTokens = (inputTokens ?? 0) + (cachedInputTokens ?? 0);
+        yield {
+          type: "done",
+          usage: {
+            inputTokens: totalInputTokens || undefined,
+            outputTokens,
+            totalTokens:
+              (totalInputTokens || outputTokens)
+                ? totalInputTokens + (outputTokens ?? 0)
+                : undefined,
+          },
+        };
       } else if (parsed.type === "error") {
         const errorMessage = typeof parsed.message === "string" ? parsed.message : (typeof parsed.error === "string" ? parsed.error : "Unknown error");
         yield { type: "error", error: errorMessage };

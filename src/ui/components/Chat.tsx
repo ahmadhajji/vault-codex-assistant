@@ -27,6 +27,7 @@ import {
 	type McpServerConfig,
 	type VaultToolNoneReason,
 	type McpAppInfo,
+	type StreamChunkUsage,
 	isImageGenerationModel,
 	WORKSPACE_FOLDER,
 } from "src/types";
@@ -35,7 +36,7 @@ import { tracing } from "src/core/tracingHooks";
 import { getEnabledTools, skillWorkflowTool } from "src/core/tools";
 import { handleExecuteJavascriptTool, EXECUTE_JAVASCRIPT_TOOL } from "src/core/sandboxExecutor";
 import { fetchMcpTools, createMcpToolExecutor, isMcpTool, type McpToolDefinition, type McpToolExecutor } from "src/core/mcpTools";
-import { GeminiCliProvider, ClaudeCliProvider, CodexCliProvider } from "src/core/cliProvider";
+import { GeminiCliProvider, ClaudeCliProvider, CodexCliProvider, type CliStreamOptions } from "src/core/cliProvider";
 import { createToolExecutor } from "src/vault/toolExecutor";
 import {
 	getPendingEdit,
@@ -120,6 +121,67 @@ async function readAgentsInstructions(plugin: GeminiHelperPlugin): Promise<strin
 	}
 }
 
+const DEFAULT_CODEX_RUNTIME_MODEL = "gpt-5.4";
+const FAST_CODEX_MODEL = "gpt-5.1-codex-mini";
+const CODEX_RUNTIME_MODEL_EXAMPLES = [
+	{ name: "gpt-5.4", description: "Latest frontier agentic coding model" },
+	{ name: "gpt-5.3-codex", description: "Frontier Codex-optimized agentic coding model" },
+	{ name: "gpt-5.2-codex", description: "Frontier agentic coding model" },
+	{ name: "gpt-5.2", description: "Optimized for professional work and long-running agents" },
+	{ name: "gpt-5.1-codex-max", description: "Codex-optimized model for deep and fast reasoning" },
+	{ name: FAST_CODEX_MODEL, description: "Cheaper and faster Codex runtime" },
+];
+
+function getEffectiveCodexRuntimeModel(preferredModel: string, fastMode: boolean): string {
+	return fastMode ? FAST_CODEX_MODEL : preferredModel;
+}
+
+function readCodexConfiguredModel(): string | null {
+	if (Platform.isMobile || typeof process === "undefined") {
+		return null;
+	}
+
+	try {
+		const loader =
+			(globalThis as unknown as { require?: (id: string) => unknown }).require ||
+			(globalThis as unknown as { module?: { require?: (id: string) => unknown } }).module?.require;
+		if (!loader) {
+			return null;
+		}
+		const fs = loader("fs") as typeof import("fs");
+		const os = loader("os") as typeof import("os");
+		const path = loader("path") as typeof import("path");
+		const configPath = path.join(process.env.HOME || os.homedir(), ".codex", "config.toml");
+		if (!fs.existsSync(configPath)) {
+			return null;
+		}
+		const content = fs.readFileSync(configPath, "utf8");
+		const match = content.match(/^model\s*=\s*"([^"]+)"/m);
+		return match?.[1] || null;
+	} catch {
+		return null;
+	}
+}
+
+function formatUsageSummary(usage: StreamChunkUsage | null): string {
+	if (!usage) {
+		return "No completed turn yet";
+	}
+
+	const parts: string[] = [];
+	if (usage.inputTokens !== undefined) {
+		parts.push(`in ${usage.inputTokens.toLocaleString()}`);
+	}
+	if (usage.outputTokens !== undefined) {
+		parts.push(`out ${usage.outputTokens.toLocaleString()}`);
+	}
+	if (usage.totalTokens !== undefined) {
+		parts.push(`total ${usage.totalTokens.toLocaleString()}`);
+	}
+
+	return parts.length > 0 ? parts.join(" • ") : "No token data";
+}
+
 const Chat = forwardRef<ChatRef, ChatProps>(({ plugin }, ref) => {
 	const [messages, setMessages] = useState<Message[]>([]);
 	const [activeChat, setActiveChat] = useState<TFile | null>(null);
@@ -133,6 +195,11 @@ const Chat = forwardRef<ChatRef, ChatProps>(({ plugin }, ref) => {
 	const [streamingContent, setStreamingContent] = useState("");
 	const [streamingThinking, setStreamingThinking] = useState("");
 	const [currentModel, setCurrentModel] = useState<ModelType>(plugin.getSelectedModel());
+	const [codexRuntimeModel, setCodexRuntimeModel] = useState(
+		plugin.workspaceState.codexCliModel || readCodexConfiguredModel() || DEFAULT_CODEX_RUNTIME_MODEL
+	);
+	const [codexFastMode, setCodexFastMode] = useState(plugin.workspaceState.codexFastMode ?? false);
+	const [lastUsage, setLastUsage] = useState<StreamChunkUsage | null>(null);
 	const [apiPlan, setApiPlan] = useState(plugin.settings.apiPlan);
 	const [ragSettingNames] = useState<string[]>([]);
 	const [selectedRagSetting, setSelectedRagSetting] = useState<string | null>(null);
@@ -239,6 +306,15 @@ const Chat = forwardRef<ChatRef, ChatProps>(({ plugin }, ref) => {
 	const getChatFilePath = (chatId: string) => {
 		return `${getChatHistoryFolder()}/${chatId}.md`;
 	};
+
+	const persistCodexPreferences = useCallback(async (updates: { codexCliModel?: string; codexFastMode?: boolean }) => {
+		plugin.workspaceState = {
+			...plugin.workspaceState,
+			...(updates.codexCliModel !== undefined ? { codexCliModel: updates.codexCliModel } : {}),
+			...(updates.codexFastMode !== undefined ? { codexFastMode: updates.codexFastMode } : {}),
+		};
+		await plugin.saveWorkspaceState();
+	}, [plugin]);
 
 	// Save current chat as a note file (in vault root)
 	const handleSaveAsNote = useCallback(async () => {
@@ -411,6 +487,25 @@ const Chat = forwardRef<ChatRef, ChatProps>(({ plugin }, ref) => {
 		}
 	}, [currentChatId, chatHistories, plugin]);
 
+	const appendLocalAssistantMessage = useCallback(async (content: string, userContent?: string) => {
+		const nextMessages = [...messages];
+		if (userContent) {
+			nextMessages.push({
+				role: "user",
+				content: userContent,
+				timestamp: Date.now(),
+			});
+		}
+		nextMessages.push({
+			role: "assistant",
+			content,
+			timestamp: Date.now(),
+			model: "codex-cli",
+		});
+		setMessages(nextMessages);
+		await saveCurrentChat(nextMessages, cliSession || undefined);
+	}, [cliSession, messages, saveCurrentChat]);
+
 	// Load chat histories on mount
 	useEffect(() => {
 		void loadChatHistories();
@@ -569,6 +664,8 @@ const Chat = forwardRef<ChatRef, ChatProps>(({ plugin }, ref) => {
 			setApiPlan(plugin.settings.apiPlan);
 			setCurrentModel("codex-cli");
 			setCliConfig(plugin.settings.cliConfig || DEFAULT_CLI_CONFIG);
+			setCodexRuntimeModel(plugin.workspaceState.codexCliModel || readCodexConfiguredModel() || DEFAULT_CODEX_RUNTIME_MODEL);
+			setCodexFastMode(plugin.workspaceState.codexFastMode ?? false);
 			setMcpServers([]);
 		};
 		plugin.settingsEmitter.on("settings-updated", handleSettingsUpdated);
@@ -708,6 +805,24 @@ const Chat = forwardRef<ChatRef, ChatProps>(({ plugin }, ref) => {
 
 		// Resolve {selection} and {content} using the same logic as slash commands
 		result = await resolveCommandVariables(result);
+
+		// Resolve explicit @file.md references first so vault-attached note mentions feel Codex-like.
+		const mentionPathPattern = /(^|\s)@([^\s@]+\.md)(?=\s|$)/g;
+		const mentionMatches = [...result.matchAll(mentionPathPattern)];
+
+		for (const match of mentionMatches) {
+			const filePath = match[2];
+			const file = plugin.app.vault.getAbstractFileByPath(filePath);
+			if (file instanceof TFile) {
+				try {
+					const fileContent = await plugin.app.vault.read(file);
+					const replacement = `${match[1]}\n\n--- Content of "${filePath}" ---\n${fileContent}\n--- End of "${filePath}" ---\n\n`;
+					result = result.replace(match[0], replacement);
+				} catch {
+					// File couldn't be read, leave as-is
+				}
+			}
+		}
 
 		// Resolve file paths - read file content and insert it
 		const filePathPattern = /(?:^|\s)([\w/-]+\.md)(?:\s|$)/g;
@@ -898,6 +1013,84 @@ const Chat = forwardRef<ChatRef, ChatProps>(({ plugin }, ref) => {
 		new Notice(t("chat.chatDeleted"));
 	};
 
+	const handleCodexInputCommand = useCallback(async (rawContent: string): Promise<boolean> => {
+		const trimmed = rawContent.trim();
+		if (!trimmed.startsWith("/")) {
+			return false;
+		}
+
+		if (trimmed === "/fast") {
+			const nextFastMode = !codexFastMode;
+			setCodexFastMode(nextFastMode);
+			await persistCodexPreferences({ codexFastMode: nextFastMode });
+			await appendLocalAssistantMessage(
+				`Fast mode ${nextFastMode ? "enabled" : "disabled"}.\n\nCurrent runtime model: \`${getEffectiveCodexRuntimeModel(codexRuntimeModel, nextFastMode)}\``
+				, trimmed
+			);
+			return true;
+		}
+
+		if (trimmed === "/status") {
+			const activeNote = plugin.app.workspace.getActiveFile()?.path || "No active note";
+			const agentsLoaded = plugin.app.vault.getFileByPath("AGENTS.md") ? "loaded" : "missing";
+			await appendLocalAssistantMessage(
+				[
+					"## Codex status",
+					`- Runtime model: \`${getEffectiveCodexRuntimeModel(codexRuntimeModel, codexFastMode)}\``,
+					`- Preferred model: \`${codexRuntimeModel}\``,
+					`- Fast mode: ${codexFastMode ? "on" : "off"}`,
+					`- Session: ${cliSession?.sessionId ? `active (\`${cliSession.sessionId}\`)` : "none yet"}`,
+					`- Latest usage: ${formatUsageSummary(lastUsage)}`,
+					`- Active note: \`${activeNote}\``,
+					`- AGENTS.md: ${agentsLoaded}`,
+				].join("\n"),
+				trimmed
+			);
+			return true;
+		}
+
+		if (trimmed.startsWith("/model")) {
+			const requestedModel = trimmed.replace(/^\/model\s*/, "").trim();
+			if (!requestedModel) {
+				await appendLocalAssistantMessage(
+					[
+						"## Codex model",
+						`- Current runtime model: \`${getEffectiveCodexRuntimeModel(codexRuntimeModel, codexFastMode)}\``,
+						`- Configured default: \`${readCodexConfiguredModel() || DEFAULT_CODEX_RUNTIME_MODEL}\``,
+						"",
+						"The plugin accepts any model name supported by your local Codex CLI.",
+						"It does not yet query the interactive terminal model picker directly.",
+						"",
+						"Examples from this Codex generation:",
+						...CODEX_RUNTIME_MODEL_EXAMPLES.map((model) => `- \`${model.name}\` (${model.description})`),
+						"",
+						"Use `/model <name>` to switch the preferred Codex model.",
+					].join("\n"),
+					trimmed
+				);
+				return true;
+			}
+
+			setCodexRuntimeModel(requestedModel);
+			await persistCodexPreferences({ codexCliModel: requestedModel });
+			await appendLocalAssistantMessage(
+				`Preferred Codex model set to \`${requestedModel}\`.\n\nCurrent runtime model: \`${getEffectiveCodexRuntimeModel(requestedModel, codexFastMode)}\``,
+				trimmed
+			);
+			return true;
+		}
+
+		return false;
+	}, [
+		appendLocalAssistantMessage,
+		cliSession,
+		codexFastMode,
+		codexRuntimeModel,
+		lastUsage,
+		persistCodexPreferences,
+		plugin,
+	]);
+
 	// Send message via CLI provider
 	const sendMessageViaCli = async (content: string, attachments?: Attachment[], skillPath?: string) => {
 		const isClaudeCli = currentModel === "claude-cli";
@@ -937,10 +1130,23 @@ const Chat = forwardRef<ChatRef, ChatProps>(({ plugin }, ref) => {
 		setIsLoading(true);
 		setStreamingContent("");
 		setStreamingThinking("");
+		setLastUsage(null);
 
 		// Create abort controller for this request
 		const abortController = new AbortController();
 		abortControllerRef.current = abortController;
+		const startedAt = Date.now();
+		const thinkingSteps: string[] = [];
+		let hasDraftStep = false;
+		let latestUsage: StreamChunkUsage | null = null;
+		const addThinkingStep = (step: string) => {
+			if (!step || thinkingSteps[thinkingSteps.length - 1] === step) {
+				return;
+			}
+			thinkingSteps.push(step);
+			setStreamingThinking(thinkingSteps.map((item) => `- ${item}`).join("\n"));
+		};
+		addThinkingStep("Preparing vault-scoped context");
 
 		const cliTraceId = tracing.traceStart("chat-message", {
 			sessionId: currentChatId ?? undefined,
@@ -996,6 +1202,13 @@ const Chat = forwardRef<ChatRef, ChatProps>(({ plugin }, ref) => {
 
 			// Determine current provider name
 			const currentProvider: ChatProvider = isClaudeCli ? "claude-cli" : isCodexCli ? "codex-cli" : "gemini-cli";
+			const effectiveCodexModel = getEffectiveCodexRuntimeModel(codexRuntimeModel, codexFastMode);
+			const streamOptions: CliStreamOptions | undefined = isCodexCli
+				? {
+					model: effectiveCodexModel,
+					fastMode: codexFastMode,
+				}
+				: undefined;
 
 			// Pass session ID only if provider supports it AND matches the stored session's provider
 			const sessionIdToUse = provider.supportsSessionResumption &&
@@ -1008,7 +1221,8 @@ const Chat = forwardRef<ChatRef, ChatProps>(({ plugin }, ref) => {
 				systemPrompt,
 				vaultBasePath,
 				abortController.signal,
-				sessionIdToUse
+				sessionIdToUse,
+				streamOptions
 			)) {
 				if (abortController.signal.aborted) {
 					stopped = true;
@@ -1016,7 +1230,17 @@ const Chat = forwardRef<ChatRef, ChatProps>(({ plugin }, ref) => {
 				}
 
 				switch (chunk.type) {
+					case "thinking":
+						if (chunk.content) {
+							addThinkingStep(chunk.content);
+						}
+						break;
+
 					case "text":
+						if (!hasDraftStep) {
+							addThinkingStep("Drafting final answer");
+							hasDraftStep = true;
+						}
 						fullContent += chunk.content || "";
 						setStreamingContent(fullContent);
 						break;
@@ -1032,6 +1256,10 @@ const Chat = forwardRef<ChatRef, ChatProps>(({ plugin }, ref) => {
 						throw new Error(chunk.error || "Unknown error");
 
 					case "done":
+						if (chunk.usage) {
+							latestUsage = chunk.usage;
+							setLastUsage(chunk.usage);
+						}
 						break;
 				}
 			}
@@ -1071,6 +1299,9 @@ const Chat = forwardRef<ChatRef, ChatProps>(({ plugin }, ref) => {
 				content: processedContent,
 				timestamp: Date.now(),
 				model: currentProvider,
+				thinking: thinkingSteps.length > 0 ? thinkingSteps.map((item) => `- ${item}`).join("\n") : undefined,
+				usage: latestUsage || undefined,
+				elapsedMs: Date.now() - startedAt,
 			};
 
 			const newMessages = [...messages, userMessage, assistantMessage];
@@ -1108,6 +1339,9 @@ const Chat = forwardRef<ChatRef, ChatProps>(({ plugin }, ref) => {
 
 		// Use CLI provider if in CLI mode
 		if (isCliMode) {
+			if (!attachments?.length && !skillPath && await handleCodexInputCommand(content)) {
+				return;
+			}
 			await sendMessageViaCli(content, attachments, skillPath);
 			return;
 		}
@@ -2026,6 +2260,8 @@ The active Obsidian vault is your only workspace boundary. Use vault-relative pa
 	};
 
 	const chatClassName = `gemini-helper-chat${isKeyboardVisible ? " keyboard-visible" : ""}${isDecryptInputFocused ? " decrypt-input-focused" : ""}`;
+	const effectiveCodexRuntimeModel = getEffectiveCodexRuntimeModel(codexRuntimeModel, codexFastMode);
+	const hasAgentsFile = !!plugin.app.vault.getFileByPath("AGENTS.md");
 
 	return (
 		<div className={chatClassName}>
@@ -2058,6 +2294,20 @@ The active Obsidian vault is your only workspace boundary. Use vault-relative pa
 						{showHistory && <ChevronDown size={14} className="gemini-helper-chevron" />}
 					</button>
 				</div>
+			</div>
+
+			<div className="gemini-helper-codex-status-row">
+				<span className="gemini-helper-codex-pill">Model {effectiveCodexRuntimeModel}</span>
+				<button
+					className={`gemini-helper-codex-pill gemini-helper-codex-pill-button ${codexFastMode ? "is-active" : ""}`}
+					onClick={() => { void sendMessage("/fast"); }}
+					disabled={isLoading}
+					title="Toggle fast mode"
+				>
+					Fast {codexFastMode ? "on" : "off"}
+				</button>
+				<span className="gemini-helper-codex-pill">AGENTS {hasAgentsFile ? "loaded" : "missing"}</span>
+				<span className="gemini-helper-codex-pill">{formatUsageSummary(lastUsage)}</span>
 			</div>
 
 			{showHistory && chatHistories.length > 0 && (

@@ -487,6 +487,12 @@ export default function MessageBubble({
         </details>
       )}
 
+      {!isUser && message.content && (
+        <div className="gemini-helper-final-answer-label">
+          {isStreaming ? "Working answer" : "Final answer"}
+        </div>
+      )}
+
       <div className="gemini-helper-message-content" ref={contentRef} />
 
       {/* Usage info (tokens, cost, response time) */}

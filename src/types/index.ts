@@ -219,6 +219,8 @@ export interface RagFileInfo {
 export interface WorkspaceState {
   selectedRagSetting: string | null;  // 現在選択中のRAG設定名
   selectedModel: ModelType | null;    // 現在選択中のモデル
+  codexCliModel?: string;             // Preferred Codex runtime model
+  codexFastMode?: boolean;            // Whether Codex fast mode is enabled
   ragSettings: Record<string, RagSetting>;  // 設定名 -> RAG設定
 }
 
@@ -238,6 +240,8 @@ export const DEFAULT_RAG_SETTING: RagSetting = {
 export const DEFAULT_WORKSPACE_STATE: WorkspaceState = {
   selectedRagSetting: null,
   selectedModel: "codex-cli",
+  codexCliModel: "gpt-5-codex",
+  codexFastMode: false,
   ragSettings: {},
 };
 

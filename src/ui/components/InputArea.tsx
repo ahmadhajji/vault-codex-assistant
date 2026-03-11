@@ -230,6 +230,28 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function InputArea
 
       // Build built-in commands list
       const builtInCommands: BuiltInCommand[] = [];
+      if (model === "codex-cli") {
+        builtInCommands.push(
+          {
+            id: "__codex_model__",
+            name: "model",
+            description: "Show or set the active Codex runtime model",
+            isBuiltIn: true,
+          },
+          {
+            id: "__codex_fast__",
+            name: "fast",
+            description: "Toggle Codex fast mode",
+            isBuiltIn: true,
+          },
+          {
+            id: "__codex_status__",
+            name: "status",
+            description: "Show current Codex session status",
+            isBuiltIn: true,
+          }
+        );
+      }
       if (onCompact && messageCount >= 2) {
         builtInCommands.push({
           id: "__compact__",
@@ -290,6 +312,22 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function InputArea
       if (command.id === "__compact__" && onCompact) {
         setInput("");
         onCompact();
+        return;
+      }
+      if (command.id === "__codex_model__") {
+        setInput("/model ");
+        textareaRef.current?.focus();
+        return;
+      }
+      if (command.id === "__codex_fast__") {
+        setInput("/fast");
+        textareaRef.current?.focus();
+        return;
+      }
+      if (command.id === "__codex_status__") {
+        setInput("/status");
+        textareaRef.current?.focus();
+        return;
       }
       // Handle skill — send immediately with skill path
       if (command.id.startsWith("__skill__")) {
@@ -311,12 +349,13 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(function InputArea
     const cursorPos = textareaRef.current?.selectionStart || input.length;
     const before = input.substring(0, mentionStartPos);
     const after = input.substring(cursorPos);
-    const newInput = before + mention.value + " " + after;
+    const mentionValue = mention.isVariable || mention.value.includes(" ") ? mention.value : `@${mention.value}`;
+    const newInput = before + mentionValue + " " + after;
     setInput(newInput);
     setShowMentionAutocomplete(false);
     // Set cursor position after the inserted mention
     setTimeout(() => {
-      const newPos = mentionStartPos + mention.value.length + 1;
+      const newPos = mentionStartPos + mentionValue.length + 1;
       textareaRef.current?.setSelectionRange(newPos, newPos);
       textareaRef.current?.focus();
     }, 0);
